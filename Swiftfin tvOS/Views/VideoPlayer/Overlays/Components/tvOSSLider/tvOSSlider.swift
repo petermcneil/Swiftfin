@@ -347,7 +347,7 @@ final class UITVOSSlider: UIControl {
     @objc
     private func handleDeceleratingTimer(timer: Timer) {
         let centerX = thumbViewCenterXConstraintConstant + deceleratingVelocity * 0.01
-        let percent = centerX / Float(trackView.frame.width)
+        let percent = max(0, min(1, centerX / Float(trackView.bounds.width)))
         value = minimumValue + ((maximumValue - minimumValue) * percent)
 
         if isContinuous {
@@ -361,7 +361,7 @@ final class UITVOSSlider: UIControl {
             stopDeceleratingTimer()
         }
 
-        valueBinding.wrappedValue = CGFloat(percent)
+        valueBinding.wrappedValue = CGFloat(value)
         onEditingChanged(false)
     }
 
@@ -398,13 +398,13 @@ final class UITVOSSlider: UIControl {
             thumbViewCenterXConstraintConstant = Float(thumbViewCenterXConstraint.constant)
         case .changed:
             let centerX = thumbViewCenterXConstraintConstant + translation / panDampingValue
-            let percent = centerX / Float(trackView.frame.width)
+            let percent = max(0, min(1, centerX / Float(trackView.frame.width)))
             value = minimumValue + ((maximumValue - minimumValue) * percent)
             if isContinuous {
                 sendActions(for: .valueChanged)
             }
 
-            valueBinding.wrappedValue = CGFloat(percent)
+            valueBinding.wrappedValue = CGFloat(value)
         case .ended, .cancelled:
 
             thumbViewCenterXConstraintConstant = Float(thumbViewCenterXConstraint.constant)

@@ -47,8 +47,10 @@ struct VideoPlayer: View {
                     currentProgressHandler.progress = newProgress
                     currentProgressHandler.seconds = newSeconds
 
-                    guard !isScrubbing else { return }
-                    currentProgressHandler.scrubbedProgress = newProgress
+                    // Always update scrubbedProgress when not actively scrubbing
+                    if !isScrubbing {
+                        currentProgressHandler.scrubbedProgress = newProgress
+                    }
                 }
                 .onStateUpdated { state, _ in
 

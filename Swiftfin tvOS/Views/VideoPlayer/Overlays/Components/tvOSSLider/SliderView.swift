@@ -15,9 +15,6 @@ struct tvOSSliderView: UIViewRepresentable {
 
     private var onEditingChanged: (Bool) -> Void
 
-    // TODO: look at adjusting value dependent on item runtime
-    private let maxValue: Double = 1000
-
     func makeUIView(context: Context) -> UITVOSSlider {
         let slider = UITVOSSlider(
             value: _value,
@@ -26,7 +23,7 @@ struct tvOSSliderView: UIViewRepresentable {
 
         slider.value = Float(value)
         slider.minimumValue = 0
-        slider.maximumValue = Float(maxValue)
+        slider.maximumValue = 1.0 // Match progress range 0-1
         slider.thumbSize = 25
         slider.thumbTintColor = .white
         slider.minimumTrackTintColor = .white
@@ -37,7 +34,13 @@ struct tvOSSliderView: UIViewRepresentable {
         return slider
     }
 
-    func updateUIView(_ uiView: UITVOSSlider, context: Context) {}
+    func updateUIView(_ uiView: UITVOSSlider, context: Context) {
+        // Update slider when binding value changes
+        let currentValue = Float(value)
+        if abs(uiView.value - currentValue) > 0.001 { // Avoid unnecessary updates
+            uiView.setValue(currentValue, animated: false)
+        }
+    }
 }
 
 extension tvOSSliderView {
