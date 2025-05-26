@@ -430,13 +430,31 @@ final class UITVOSSlider: UIControl {
 
     @objc
     private func leftTapWasTriggered() {
-        //        setValue(value-stepValue, animated: true)
-//        viewModel.playerOverlayDelegate?.didSelectBackward()
+        let newValue = max(minimumValue, value - stepValue)
+        setValue(newValue, animated: true)
+        valueBinding.wrappedValue = CGFloat(newValue)
+        onEditingChanged(true)
+
+        // Brief delay then stop editing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.onEditingChanged(false)
+        }
+
+        sendActions(for: .valueChanged)
     }
 
     @objc
     private func rightTapWasTriggered() {
-        //        setValue(value+stepValue, animated: true)
-//        viewModel.playerOverlayDelegate?.didSelectForward()
+        let newValue = min(maximumValue, value + stepValue)
+        setValue(newValue, animated: true)
+        valueBinding.wrappedValue = CGFloat(newValue)
+        onEditingChanged(true)
+
+        // Brief delay then stop editing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.onEditingChanged(false)
+        }
+
+        sendActions(for: .valueChanged)
     }
 }
