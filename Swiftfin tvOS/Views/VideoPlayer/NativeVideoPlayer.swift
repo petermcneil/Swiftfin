@@ -56,29 +56,63 @@ struct NativeVideoPlayerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UINativeVideoPlayerViewController, context: Context) {}
 }
 
-// TODO: Refactor such that this does not subclass AVPlayerViewController. Subclassing is not
-// supported according to the apple docs.
-class UINativeVideoPlayerViewController: AVPlayerViewController {
+class UINativeVideoPlayerViewController: UIViewController {
 
     let videoPlayerManager: VideoPlayerManager
+    private let playerViewController = AVPlayerViewController()
 
     private var rateObserver: NSKeyValueObservation!
     private var timeObserverToken: Any!
 
     init(manager: VideoPlayerManager) {
-
         self.videoPlayerManager = manager
-
         super.init(nibName: nil, bundle: nil)
+    }
 
-        let newPlayer: AVPlayer = .init(url: manager.currentViewModel.playbackURL)
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
-        newPlayer.allowsExternalPlayback = true
-        newPlayer.appliesMediaSelectionCriteriaAutomatically = false
-        newPlayer.currentItem?.externalMetadata = createMetadata()
+    override func viewDidLoad() {
+        super.viewDidLoad()
 
-        rateObserver = newPlayer.observe(\.rate, options: .new) { _, change in
-            guard let newValue = change.newValue else { return }
+        // Add AVPlayerViewController as child
+        addChild(playerViewController)
+        view.addSubview(playerViewController.view)
+        playerViewController.view.frame = view.bounds
+        playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        playerViewController.didMove(toParent: self)
+
+        // Set up player
+        setupPlayer()
+    }
+
+    private func setupPlayer() {
+        let asset = AVAsset(url: videoPlayerManager.currentViewModel.playbackURL)
+
+        // Load metadata and playable status asynchronously
+        asset.loadValuesAsynchronously(forKeys: ["playable", "metadata"]) { [weak self] in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                // Create player with properly loaded asset
+                let playerItem = AVPlayerItem(asset: asset)
+                playerItem.externalMetadata = self.createMetadata()
+
+                let newPlayer = AVPlayer(playerItem: playerItem)
+                newPlayer.allowsExternalPlayback = true
+                newPlayer.appliesMediaSelectionCriteriaAutomatically = false
+
+                // Finish configuring player
+                self.configurePlayer(newPlayer)
+            }
+        }
+    }
+
+    private func configurePlayer(_ newPlayer: AVPlayer) {
+        rateObserver = newPlayer.observe(\.rate, options: .new) { [weak self] _, change in
+            guard let self = self, let newValue = change.newValue else { return }
 
             if newValue == 0 {
                 self.videoPlayerManager.onStateUpdated(newState: .paused)
@@ -90,8 +124,7 @@ class UINativeVideoPlayerViewController: AVPlayerViewController {
         let time = CMTime(seconds: 0.1, preferredTimescale: 1000)
 
         timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: time, queue: .main) { [weak self] time in
-
-            guard let self else { return }
+            guard let self = self else { return }
 
             if time.seconds >= 0 {
                 let newSeconds = Int(time.seconds)
@@ -104,30 +137,22 @@ class UINativeVideoPlayerViewController: AVPlayerViewController {
             }
         }
 
-        player = newPlayer
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
+        playerViewController.player = newPlayer
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
 
         stop()
-        guard let timeObserverToken else { return }
-        player?.removeTimeObserver(timeObserverToken)
+        if let timeObserverToken = timeObserverToken {
+            playerViewController.player?.removeTimeObserver(timeObserverToken)
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        player?.seek(
+        playerViewController.player?.seek(
             to: CMTimeMake(
                 value: Int64(videoPlayerManager.currentViewModel.item.startTimeSeconds - Defaults[.VideoPlayer.resumeOffset]),
                 timescale: 1
@@ -135,7 +160,10 @@ class UINativeVideoPlayerViewController: AVPlayerViewController {
             toleranceBefore: .zero,
             toleranceAfter: .zero,
             completionHandler: { _ in
-                self.play()
+                // Small delay to let subtitles synchronize on tvOS
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.play()
+                }
             }
         )
     }
@@ -162,15 +190,13 @@ class UINativeVideoPlayerViewController: AVPlayerViewController {
         return item.copy() as? AVMetadataItem
     }
 
-    private func play() {
-        player?.play()
-
+    func play() {
+        playerViewController.player?.play()
         videoPlayerManager.sendStartReport()
     }
 
-    private func stop() {
-        player?.pause()
-
+    func stop() {
+        playerViewController.player?.pause()
         videoPlayerManager.sendStopReport()
     }
 }
