@@ -104,3 +104,5 @@ XcodeConfig/DevelopmentTeam.xcconfig
 
 # Other
 .idea
+CLAUDE.md
+GEMINI.md
